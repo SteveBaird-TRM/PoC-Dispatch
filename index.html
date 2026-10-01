@@ -77,7 +77,7 @@
   .print-btn[hidden] { display: none; }
 
   @media print {
-    @page { size: A4 portrait; margin: 15mm; }
+    @page { size: A4 portrait; margin: 20mm; }
     body { background: #fff; font-size: 10.5pt; }
     main { max-width: none; padding: 0; }
     main > h1, .search, .status-row { display: none; }
@@ -86,7 +86,7 @@
     .note-head { padding: 0 0 12px; }
     .order-head { padding: 8px 0; background: none; border-bottom: 2px solid var(--text); }
     .table-wrap { overflow: visible; }
-    /* Fixed layout keeps the table inside the 180mm printable width;
+    /* Fixed layout keeps the table inside the 170mm printable width;
        long SKUs and barcodes wrap rather than overflowing. */
     table { table-layout: fixed; width: 100%; }
     th, td { padding: 6px 8px 6px 0; white-space: normal; overflow-wrap: anywhere; }
@@ -137,7 +137,7 @@
   <h1>Order Lookup</h1>
 
   <form class="search" id="search-form" autocomplete="off">
-    <input type="search" id="order-input" placeholder="Order number, e.g. TEST-1003" aria-label="Order number" autofocus />
+    <input type="search" id="order-input" placeholder="Order number, e.g. 1003" aria-label="Order number" autofocus />
     <button type="submit" id="search-btn">Search</button>
   </form>
 
