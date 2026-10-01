@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dispatch Note</title>
+<link rel="icon" type="image/svg+xml" href="dispatch-favicon.svg">
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --panel-alt: #eef0f4;
+    --border: #d7dae0;
+    --text: #16181d;
+    --muted: #5b6472;
+    --accent: #3b6fe0;
+    --danger: #d1354a;
+    --font-display: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 15px;
+  }
+  main { max-width: 1000px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-family: var(--font-display); font-weight: 600; font-size: 28px; margin: 0 0 20px; }
+
+  .search {
+    display: flex;
+    gap: 8px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .search input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-family: var(--font-mono);
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .search input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+  .search button {
+    font: inherit;
+    font-weight: 600;
+    padding: 10px 18px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+  }
+  .search button:disabled { opacity: .6; cursor: default; }
+
+  .status-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 16px 2px; }
+  .status { color: var(--muted); min-height: 1.2em; }
+  .status.error { color: var(--danger); }
+  .print-btn {
+    font: inherit;
+    font-weight: 600;
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .print-btn:hover { background: var(--panel-alt); }
+  .print-btn[hidden] { display: none; }
+
+  @media print {
+    @page { size: A4 portrait; margin: 20mm; }
+    body { background: #fff; font-size: 10.5pt; }
+    main { max-width: none; padding: 0; }
+    main > h1, .search, .status-row { display: none; }
+    .order { border: 0; border-radius: 0; margin: 0; break-inside: avoid; }
+    .order + .order { break-before: page; }
+    .note-head { padding: 0 0 12px; }
+    .order-head { padding: 8px 0; background: none; border-bottom: 2px solid var(--text); }
+    .table-wrap { overflow: visible; }
+    /* Fixed layout keeps the table inside the 170mm printable width;
+       long SKUs and barcodes wrap rather than overflowing. */
+    table { table-layout: fixed; width: 100%; }
+    th, td { padding: 6px 8px 6px 0; white-space: normal; overflow-wrap: anywhere; }
+    th { font-size: 8pt; }
+    td.mono { font-size: 9.5pt; }
+    /* Barcode column is 28% of 170mm ≈ 47mm, enough for a full-size
+       EAN-13 (37.6mm including quiet zones) plus cell padding. */
+    th:nth-child(1) { width: 5%; }
+    th:nth-child(2), th:nth-child(3) { width: 18%; }
+    th:nth-child(4) { width: 17%; }
+    th:nth-child(5) { width: 28%; }
+    th:nth-child(6) { width: 14%; }
+    tr { break-inside: avoid; }
+    /* 114 modules at the nominal 0.33mm module width. */
+    svg.ean13 { width: 37.6mm; }
+  }
+
+  td.barcode { padding-top: 6px; padding-bottom: 6px; }
+  svg.ean13 { display: block; width: 171px; height: auto; }
+  .barcode-error { display: block; color: var(--danger); font-family: var(--font-body); font-size: 12px; margin-top: 2px; }
+
+  .order {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .note-head { padding: 16px 16px 12px; }
+  .note-head h2 { font-family: var(--font-display); font-weight: 600; font-size: 22px; margin: 0 0 6px; }
+  .note-head address { font-style: normal; color: var(--muted); }
+  .order-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--panel-alt);
+    border-bottom: 1px solid var(--border);
+  }
+  .order-head h3 { margin: 0; font-size: 17px; font-family: var(--font-mono); }
+  .order-head span { color: var(--muted); font-size: 13px; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 16px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+  td.mono { font-family: var(--font-mono); font-size: 14px; }
+  td.empty { color: var(--muted); }
+  th.num, td.num { text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Order Lookup</h1>
+
+  <form class="search" id="search-form" autocomplete="off">
+    <input type="search" id="order-input" placeholder="Order number, e.g. 1003" aria-label="Order number" autofocus />
+    <button type="submit" id="search-btn">Search</button>
+  </form>
+
+  <div class="status-row">
+    <div class="status" id="status" role="status"></div>
+    <button type="button" class="print-btn" id="print-btn" hidden>Print</button>
+  </div>
+  <div id="results"></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/barcodes/JsBarcode.ean-upc.min.js"></script>
+<script>
+  const SUPABASE_URL = 'https://qkkcvbafkderoxlxvjww.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_FzDjgkUIrncKMuyt253GsA_qK2fGKH1';
+  const MAX_ROWS = 500;
+
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const form = document.getElementById('search-form');
+  const input = document.getElementById('order-input');
+  const button = document.getElementById('search-btn');
+  const statusEl = document.getElementById('status');
+  const resultsEl = document.getElementById('results');
+  const printBtn = document.getElementById('print-btn');
+
+  printBtn.addEventListener('click', () => window.print());
+
+  const COLUMNS = [
+    ['standard_sku', 'Standard SKU'],
+    ['non_standard_sku', 'Non-standard SKU'],
+    ['customs_category', 'Customs Category'],
+    ['barcode_number', 'Barcode Number'],
+    ['quantity', 'Quantity'],
+  ];
+
+  function setStatus(text, isError) {
+    statusEl.textContent = text;
+    statusEl.classList.toggle('error', !!isError);
+  }
+
+  // Escape LIKE wildcards so the user's text is matched literally.
+  function likeEscape(s) {
+    return s.replace(/[\\%_]/g, (c) => '\\' + c);
+  }
+
+  async function search(term) {
+    resultsEl.replaceChildren();
+    printBtn.hidden = true;
+    if (!term) { setStatus(''); return; }
+
+    button.disabled = true;
+    setStatus('Searching…');
+
+    const { data, error } = await supabaseClient
+      .from('order_items')
+      .select('id, order_number, standard_sku, non_standard_sku, quantity')
+      .ilike('order_number', '%' + likeEscape(term) + '%')
+      .order('order_number')
+      .order('id')
+      .limit(MAX_ROWS);
+
+    if (error) { button.disabled = false; setStatus('Search failed: ' + error.message, true); return; }
+    if (!data.length) { button.disabled = false; setStatus('No orders found matching "' + term + '".'); return; }
+
+    const lookupError = await applyProductDetails(data);
+    button.disabled = false;
+    if (lookupError) { setStatus('Product lookup failed: ' + lookupError.message, true); return; }
+
+    const orders = new Map();
+    for (const row of data) {
+      if (!orders.has(row.order_number)) orders.set(row.order_number, []);
+      orders.get(row.order_number).push(row);
+    }
+
+    // An exact match goes first, the rest stay alphabetical.
+    const lower = term.toLowerCase();
+    const keys = [...orders.keys()].sort((a, b) =>
+      (b.toLowerCase() === lower) - (a.toLowerCase() === lower));
+
+    for (const key of keys) resultsEl.appendChild(renderOrder(key, orders.get(key)));
+
+    const orderWord = orders.size === 1 ? 'order' : 'orders';
+    const itemWord = data.length === 1 ? 'item' : 'items';
+    let msg = `${orders.size} ${orderWord}, ${data.length} ${itemWord}`;
+    if (data.length === MAX_ROWS) msg += ` (showing first ${MAX_ROWS} — refine your search)`;
+    setStatus(msg);
+    printBtn.hidden = false;
+  }
+
+  // For items with a standard SKU, take the customs category and barcode from
+  // the products table, plus the non-standard SKU unless the product leaves it
+  // blank (then the order item's own value is kept). SKUs not in the products
+  // table show no customs category or barcode.
+  const PRODUCT_FIELDS = ['non_standard_sku', 'customs_category', 'barcode_number'];
+
+  async function applyProductDetails(items) {
+    const skus = [...new Set(items.map((item) => item.standard_sku).filter(Boolean))];
+    if (!skus.length) return null;
+
+    const { data, error } = await supabaseClient
+      .from('products')
+      .select('standard_sku, ' + PRODUCT_FIELDS.join(', '))
+      .in('standard_sku', skus);
+    if (error) return error;
+
+    const bySku = new Map(data.map((product) => [product.standard_sku, product]));
+    for (const item of items) {
+      const product = bySku.get(item.standard_sku);
+      if (!product) continue;
+      for (const field of PRODUCT_FIELDS) {
+        if (product[field] !== null && product[field] !== '') item[field] = product[field];
+      }
+    }
+    return null;
+  }
+
+  // EAN-13 check digit: weights 1,3,1,3… over the first 12 digits.
+  function ean13CheckDigit(digits) {
+    let sum = 0;
+    for (let i = 0; i < 12; i++) sum += Number(digits[i]) * (i % 2 ? 3 : 1);
+    return (10 - (sum % 10)) % 10;
+  }
+
+  // Returns an error message, or null if the value is a scannable EAN-13.
+  function ean13Problem(value) {
+    if (!/^\d{13}$/.test(value)) return 'Not a 13-digit EAN';
+    const expected = ean13CheckDigit(value);
+    if (Number(value[12]) !== expected) return `Invalid check digit (should end in ${expected})`;
+    return null;
+  }
+
+  // Fill a cell with an EAN-13 barcode, or the plain number plus a warning if
+  // it can't be drawn as one (a barcode that scans as the wrong number is
+  // worse than none).
+  function renderBarcode(td, value) {
+    td.className = 'mono barcode';
+    const problem = ean13Problem(value)
+      || (window.JsBarcode ? null : 'Barcode library failed to load');
+    if (!problem) {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', 'ean13');
+      svg.setAttribute('role', 'img');
+      svg.setAttribute('aria-label', 'EAN-13 barcode ' + value);
+      try {
+        // Units are barcode modules: the library adds an 11-module left quiet
+        // zone for the leading digit; marginRight gives the 7-module right one.
+        JsBarcode(svg, value, {
+          format: 'EAN13', width: 1, height: 50, fontSize: 10, textMargin: 1,
+          font: 'monospace', margin: 0, marginRight: 7,
+        });
+        td.appendChild(svg);
+        return;
+      } catch (e) {
+        td.textContent = value;
+        appendBarcodeError(td, 'Could not draw barcode');
+        return;
+      }
+    }
+    td.textContent = value;
+    appendBarcodeError(td, problem);
+  }
+
+  function appendBarcodeError(td, message) {
+    const note = document.createElement('span');
+    note.className = 'barcode-error';
+    note.textContent = message;
+    td.appendChild(note);
+  }
+
+  function renderOrder(orderNumber, items) {
+    const section = document.createElement('section');
+    section.className = 'order';
+
+    const noteHead = document.createElement('div');
+    noteHead.className = 'note-head';
+    const title = document.createElement('h2');
+    title.textContent = 'Dispatch Note';
+    const from = document.createElement('address');
+    from.textContent = 'From: The Royal Mint, Llantrisant, Pontyclun. CF72 8YT';
+    noteHead.append(title, from);
+
+    const head = document.createElement('div');
+    head.className = 'order-head';
+    const h3 = document.createElement('h3');
+    h3.textContent = orderNumber;
+    const count = document.createElement('span');
+    const units = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    count.textContent = items.length + (items.length === 1 ? ' item' : ' items')
+      + ' · ' + units + (units === 1 ? ' unit' : ' units');
+    head.append(h3, count);
+
+    const table = document.createElement('table');
+    const headRow = table.createTHead().insertRow();
+    for (const [key, label] of [['', '#'], ...COLUMNS]) {
+      const th = document.createElement('th');
+      th.textContent = label;
+      if (key === 'quantity') th.className = 'num';
+      headRow.appendChild(th);
+    }
+    const tbody = table.createTBody();
+    items.forEach((item, i) => {
+      const tr = tbody.insertRow();
+      const numCell = tr.insertCell();
+      numCell.textContent = i + 1;
+      numCell.className = 'mono';
+      for (const [key] of COLUMNS) {
+        const td = tr.insertCell();
+        const value = item[key];
+        if (value == null || value === '') {
+          td.textContent = '—';
+          td.className = 'empty';
+        } else if (key === 'barcode_number') {
+          renderBarcode(td, String(value).trim());
+        } else {
+          td.textContent = value;
+          td.className = key === 'quantity' ? 'mono num' : 'mono';
+        }
+      }
+    });
+
+    const wrap = document.createElement('div');
+    wrap.className = 'table-wrap';
+    wrap.appendChild(table);
+    section.append(noteHead, head, wrap);
+    return section;
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const term = input.value.trim();
+    const url = new URL(location.href);
+    if (term) url.searchParams.set('order', term); else url.searchParams.delete('order');
+    history.replaceState(null, '', url);
+    search(term);
+  });
+
+  // Allow linking straight to an order: barcodes.html?order=TEST-1003
+  const initial = new URLSearchParams(location.search).get('order');
+  if (initial) { input.value = initial; search(initial.trim()); }
+</script>
+</body>
+</html>
