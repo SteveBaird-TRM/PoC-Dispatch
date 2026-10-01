@@ -193,7 +193,7 @@
 
     const { data, error } = await supabaseClient
       .from('order_items')
-      .select('id, order_number, standard_sku, non_standard_sku, customs_category, barcode_number, quantity')
+      .select('id, order_number, standard_sku, non_standard_sku, quantity')
       .ilike('order_number', '%' + likeEscape(term) + '%')
       .order('order_number')
       .order('id')
@@ -227,9 +227,10 @@
     printBtn.hidden = false;
   }
 
-  // For items with a standard SKU, take the non-standard SKU, customs category
-  // and barcode from the products table. Fields the product leaves blank, and
-  // SKUs not in the products table, keep the values stored on the order item.
+  // For items with a standard SKU, take the customs category and barcode from
+  // the products table, plus the non-standard SKU unless the product leaves it
+  // blank (then the order item's own value is kept). SKUs not in the products
+  // table show no customs category or barcode.
   const PRODUCT_FIELDS = ['non_standard_sku', 'customs_category', 'barcode_number'];
 
   async function applyProductDetails(items) {
@@ -286,17 +287,18 @@
     const tbody = table.createTBody();
     items.forEach((item, i) => {
       const tr = tbody.insertRow();
-      tr.insertCell().textContent = i + 1;
+      const numCell = tr.insertCell();
+      numCell.textContent = i + 1;
+      numCell.className = 'mono';
       for (const [key] of COLUMNS) {
         const td = tr.insertCell();
         const value = item[key];
-        if (value === null || value === '') {
+        if (value == null || value === '') {
           td.textContent = '—';
           td.className = 'empty';
         } else {
           td.textContent = value;
-          if (key === 'quantity') td.className = 'mono num';
-          else if (key !== 'customs_category') td.className = 'mono';
+          td.className = key === 'quantity' ? 'mono num' : 'mono';
         }
       }
     });
