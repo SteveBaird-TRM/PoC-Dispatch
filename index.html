@@ -199,10 +199,12 @@
       .order('id')
       .limit(MAX_ROWS);
 
-    button.disabled = false;
+    if (error) { button.disabled = false; setStatus('Search failed: ' + error.message, true); return; }
+    if (!data.length) { button.disabled = false; setStatus('No orders found matching "' + term + '".'); return; }
 
-    if (error) { setStatus('Search failed: ' + error.message, true); return; }
-    if (!data.length) { setStatus('No orders found matching "' + term + '".'); return; }
+    const lookupError = await applyProductDetails(data);
+    button.disabled = false;
+    if (lookupError) { setStatus('Product lookup failed: ' + lookupError.message, true); return; }
 
     const orders = new Map();
     for (const row of data) {
@@ -223,6 +225,32 @@
     if (data.length === MAX_ROWS) msg += ` (showing first ${MAX_ROWS} — refine your search)`;
     setStatus(msg);
     printBtn.hidden = false;
+  }
+
+  // For items with a standard SKU, take the non-standard SKU, customs category
+  // and barcode from the products table. Fields the product leaves blank, and
+  // SKUs not in the products table, keep the values stored on the order item.
+  const PRODUCT_FIELDS = ['non_standard_sku', 'customs_category', 'barcode_number'];
+
+  async function applyProductDetails(items) {
+    const skus = [...new Set(items.map((item) => item.standard_sku).filter(Boolean))];
+    if (!skus.length) return null;
+
+    const { data, error } = await supabaseClient
+      .from('products')
+      .select('standard_sku, ' + PRODUCT_FIELDS.join(', '))
+      .in('standard_sku', skus);
+    if (error) return error;
+
+    const bySku = new Map(data.map((product) => [product.standard_sku, product]));
+    for (const item of items) {
+      const product = bySku.get(item.standard_sku);
+      if (!product) continue;
+      for (const field of PRODUCT_FIELDS) {
+        if (product[field] !== null && product[field] !== '') item[field] = product[field];
+      }
+    }
+    return null;
   }
 
   function renderOrder(orderNumber, items) {
