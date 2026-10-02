@@ -177,9 +177,9 @@
   const COLUMNS = [
     ['standard_sku', 'Standard SKU'],
     ['non_standard_sku', 'Non-standard SKU'],
-    ['customs_category', 'Customs Category'],
-    ['barcode_number', 'Barcode Number'],
-    ['quantity', 'Quantity'],
+    ['customs_category', 'Category'],
+    ['barcode_number', 'Barcode'],
+    ['quantity', 'Qty'],
   ];
 
   function setStatus(text, isError) {
@@ -334,8 +334,8 @@
     h3.textContent = orderNumber;
     const count = document.createElement('span');
     const units = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
-    count.textContent = items.length + (items.length === 1 ? ' item' : ' items')
-      + ' · ' + units + (units === 1 ? ' unit' : ' units');
+    count.textContent = items.length + (items.length === 1 ? ' line' : ' lines')
+      + ' · ' + units + (units === 1 ? ' item' : ' items');
     head.append(h3, count);
 
     const table = document.createElement('table');
